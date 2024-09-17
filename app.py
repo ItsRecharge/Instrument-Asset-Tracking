@@ -45,9 +45,27 @@ def authenticate_user(email, password):
     except FileNotFoundError:
         return None
 
+# Global check for authentication and redirect logic before every request
+@app.before_request
+def check_user_authentication():
+    # Allow access to these routes without redirection
+    allowed_routes = ['login', 'signup', 'static']
+
+    # Check if user is already logged in via session or cookie
+    if 'user' not in session:
+        user = request.cookies.get('user')
+        if user:
+            session['user'] = user  # Automatically log the user in using the cookie
+        elif request.endpoint not in allowed_routes:
+            # Redirect to login if not authenticated and trying to access a restricted route
+            return redirect(url_for('login'))
+
 # Route for the login page
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if 'user' in session:
+        return redirect(url_for('home'))  # Redirect to home if already logged in
+
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
@@ -72,6 +90,9 @@ def login():
 # Route for the sign-up page
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
+    if 'user' in session:
+        return redirect(url_for('home'))  # Redirect to home if already logged in
+
     if request.method == 'POST':
         name = request.form['name']
         email = request.form['email']
@@ -100,13 +121,8 @@ def home():
     if 'user' in session:
         return render_template('home.html', user=session['user'])
     
-    # Check if the cookie exists
-    user = request.cookies.get('user')
-    if user:
-        session['user'] = user  # Automatically log in the user using the cookie
-        return render_template('home.html', user=user)
-
-    flash('You need to log in first!', 'warning')
+    # This line will likely never be reached because of the global check,
+    # but we'll keep it as a fallback in case someone tries to manually access /home.
     return redirect(url_for('login'))
 
 # Route for logging out

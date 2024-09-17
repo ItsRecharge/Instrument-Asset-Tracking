@@ -1,14 +1,13 @@
+from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response
 import csv
 import bcrypt
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from datetime import timedelta
 
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = 'supersecretkey'  # Needed to use sessions
+app.secret_key = 'supersecretkey'  # Secret key for session management
 CSV_FILE = 'users.csv'  # CSV file to store user data
-
-# Sign-up key
-SIGNUP_KEY = '123'
+SIGNUP_KEY = '123'  # Required sign-up key for user registration
 
 # Helper function to check if a user exists by email
 def user_exists(email):
@@ -52,12 +51,19 @@ def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
-        
+        remember_me = 'remember_me' in request.form  # Check if 'Remember Me' checkbox is checked
+
         # Authenticate the user
         user = authenticate_user(email, password)
         if user:
             session['user'] = user
-            return redirect(url_for('home'))
+            response = make_response(redirect(url_for('home')))
+
+            if remember_me:
+                # Set a cookie to remember the user for 30 days
+                response.set_cookie('user', user, max_age=30*24*60*60)  # Cookie valid for 30 days
+
+            return response
         else:
             flash('Invalid credentials. Please try again.', 'error')
 
@@ -93,16 +99,24 @@ def signup():
 def home():
     if 'user' in session:
         return render_template('home.html', user=session['user'])
-    else:
-        flash('You need to log in first!', 'warning')
-        return redirect(url_for('login'))
+    
+    # Check if the cookie exists
+    user = request.cookies.get('user')
+    if user:
+        session['user'] = user  # Automatically log in the user using the cookie
+        return render_template('home.html', user=user)
+
+    flash('You need to log in first!', 'warning')
+    return redirect(url_for('login'))
 
 # Route for logging out
 @app.route('/logout')
 def logout():
     session.pop('user', None)
+    response = make_response(redirect(url_for('login')))
+    response.set_cookie('user', '', expires=0)  # Clear the cookie by setting its expiration date in the past
     flash('You have been logged out.', 'info')
-    return redirect(url_for('login'))
+    return response
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -134,5 +134,15 @@ def logout():
     flash('You have been logged out.', 'info')
     return response
 
+# Custom error handler for 404 errors (Page Not Found)
+@app.errorhandler(404)
+def page_not_found(e):
+    if 'user' in session or request.cookies.get('user'):
+        # Redirect to home if the user is logged in or has a valid cookie
+        return redirect(url_for('home'))
+    else:
+        # Redirect to login if the user is not logged in
+        return redirect(url_for('login'))
+
 if __name__ == '__main__':
     app.run(debug=True)

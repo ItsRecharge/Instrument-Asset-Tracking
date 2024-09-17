@@ -5,8 +5,8 @@
 {% block content %}
 <div class="jumbotron text-center">
     <h1 class="display-4">Welcome, {{ user }}!</h1>
-    <p class="lead">You have successfully logged in.</p>
+    <p class="lead">You can now manage instruments at the music school.</p>
     <hr class="my-4">
-    <a href="{{ url_for('logout') }}" class="btn btn-danger btn-lg">Logout</a>
+    <a href="{{ url_for('add_instrument') }}" class="btn btn-primary btn-lg">Add a New Instrument</a>
 </div>
 {% endblock %}

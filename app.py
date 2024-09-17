@@ -1,12 +1,14 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response
 import csv
 import bcrypt
+import uuid  # For generating UUIDs for instruments
 from datetime import timedelta
 
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'  # Secret key for session management
 CSV_FILE = 'users.csv'  # CSV file to store user data
+INSTRUMENT_FILE = 'instruments.csv'  # CSV file to store instrument data
 SIGNUP_KEY = '123'  # Required sign-up key for user registration
 
 # Helper function to check if a user exists by email
@@ -44,6 +46,24 @@ def authenticate_user(email, password):
         return None
     except FileNotFoundError:
         return None
+
+# Helper function to get unique values from the instrument CSV for dropdowns
+def get_dropdown_values():
+    brands = set()
+    types = set()
+    conditions = set()
+
+    try:
+        with open(INSTRUMENT_FILE, mode='r') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                brands.add(row['brand'])
+                types.add(row['instrument_type'])
+                conditions.add(row['condition'])
+    except FileNotFoundError:
+        pass  # If file doesn't exist yet, it's fine; dropdowns will be empty
+
+    return list(brands), list(types), list(conditions)
 
 # Global check for authentication and redirect logic before every request
 @app.before_request
@@ -124,6 +144,52 @@ def home():
     # This line will likely never be reached because of the global check,
     # but we'll keep it as a fallback in case someone tries to manually access /home.
     return redirect(url_for('login'))
+
+# Route to add a new instrument (only accessible if logged in)
+@app.route('/add_instrument', methods=['GET', 'POST'])
+def add_instrument():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        brand = request.form['brand'] if request.form['brand'] != 'Add new...' else request.form['new_brand']
+        instrument_type = request.form['instrument_type'] if request.form['instrument_type'] != 'Add new...' else request.form['new_instrument_type']
+        serial_number = request.form['serial_number']
+        uuid_code = request.form['uuid'] or str(uuid.uuid4())  # Auto-generate UUID if not provided
+        condition = request.form['condition'] if request.form['condition'] != 'Add new...' else request.form['new_condition']
+        checked_out = 'checked_out' in request.form  # True if checked out
+        location = request.form['location'] if not checked_out else ''
+        student_name = request.form['student_name'] if checked_out else ''
+        grad_year = request.form['grad_year'] if checked_out else ''
+        student_id = request.form['student_id'] if checked_out else ''
+        notes = request.form['notes']
+
+        # Write the instrument data to the CSV file
+        with open(INSTRUMENT_FILE, mode='a', newline='') as file:
+            fieldnames = ['brand', 'instrument_type', 'serial_number', 'uuid', 'condition', 'checked_out', 'location', 'student_name', 'grad_year', 'student_id', 'notes']
+            writer = csv.DictWriter(file, fieldnames=fieldnames)
+            if file.tell() == 0:
+                writer.writeheader()  # Write header if file is empty
+            writer.writerow({
+                'brand': brand,
+                'instrument_type': instrument_type,
+                'serial_number': serial_number,
+                'uuid': uuid_code,
+                'condition': condition,
+                'checked_out': 'Yes' if checked_out else 'No',
+                'location': location,
+                'student_name': student_name,
+                'grad_year': grad_year,
+                'student_id': student_id,
+                'notes': notes
+            })
+
+        flash('Instrument added successfully!', 'success')
+        return redirect(url_for('add_instrument'))
+
+    # If it's a GET request, load the form and dropdown values
+    brands, types, conditions = get_dropdown_values()
+    return render_template('add_instrument.html', brands=brands, types=types, conditions=conditions)
 
 # Route for logging out
 @app.route('/logout')

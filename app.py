@@ -1,15 +1,30 @@
+import os
 from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response
 import csv
 import bcrypt
-import uuid  # For generating UUIDs for instruments
+from werkzeug.utils import secure_filename
 from datetime import timedelta
 
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'  # Secret key for session management
+
+# Set up file upload configurations
+UPLOAD_FOLDER = 'uploads'  # Directory where uploaded files will be stored
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 CSV_FILE = 'users.csv'  # CSV file to store user data
 INSTRUMENT_FILE = 'instruments.csv'  # CSV file to store instrument data
 SIGNUP_KEY = '123'  # Required sign-up key for user registration
+
+# Ensure the upload folder exists
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+# Helper function to check allowed file extensions
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Helper function to check if a user exists by email
 def user_exists(email):
@@ -24,14 +39,14 @@ def user_exists(email):
         return False
 
 # Helper function to register a new user
-def register_user(name, email, password):
+def register_user(first_name, last_name, email, password):
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
     with open(CSV_FILE, mode='a', newline='') as file:
-        fieldnames = ['name', 'email', 'password']
+        fieldnames = ['first_name', 'last_name', 'email', 'password']
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         if file.tell() == 0:
             writer.writeheader()  # Write header if file is empty
-        writer.writerow({'name': name, 'email': email, 'password': hashed_password.decode('utf-8')})
+        writer.writerow({'first_name': first_name, 'last_name': last_name, 'email': email, 'password': hashed_password.decode('utf-8')})
 
 # Helper function to authenticate a user
 def authenticate_user(email, password):
@@ -40,9 +55,8 @@ def authenticate_user(email, password):
             reader = csv.DictReader(file)
             for row in reader:
                 if row['email'] == email:
-                    # Check if the password matches the hashed password
                     if bcrypt.checkpw(password.encode('utf-8'), row['password'].encode('utf-8')):
-                        return row['name']
+                        return f"{row['first_name']} {row['last_name']}"
         return None
     except FileNotFoundError:
         return None
@@ -52,7 +66,6 @@ def get_dropdown_values():
     brands = set()
     types = set()
     conditions = set()
-
     try:
         with open(INSTRUMENT_FILE, mode='r') as file:
             reader = csv.DictReader(file)
@@ -62,7 +75,6 @@ def get_dropdown_values():
                 conditions.add(row['condition'])
     except FileNotFoundError:
         pass  # If file doesn't exist yet, it's fine; dropdowns will be empty
-
     return list(brands), list(types), list(conditions)
 
 # Global check for authentication and redirect logic before every request
@@ -70,7 +82,6 @@ def get_dropdown_values():
 def check_user_authentication():
     # Allow access to these routes without redirection
     allowed_routes = ['login', 'signup', 'static']
-
     # Check if user is already logged in via session or cookie
     if 'user' not in session:
         user = request.cookies.get('user')
@@ -114,7 +125,8 @@ def signup():
         return redirect(url_for('home'))  # Redirect to home if already logged in
 
     if request.method == 'POST':
-        name = request.form['name']
+        first_name = request.form['first_name']
+        last_name = request.form['last_name']
         email = request.form['email']
         password = request.form['password']
         signup_key = request.form['signup_key']
@@ -129,7 +141,7 @@ def signup():
             flash('User already exists with this email!', 'error')
         else:
             # Register the user
-            register_user(name, email, password)
+            register_user(first_name, last_name, email, password)
             flash('Registration successful! Please log in.', 'success')
             return redirect(url_for('login'))
 
@@ -140,9 +152,6 @@ def signup():
 def home():
     if 'user' in session:
         return render_template('home.html', user=session['user'])
-    
-    # This line will likely never be reached because of the global check,
-    # but we'll keep it as a fallback in case someone tries to manually access /home.
     return redirect(url_for('login'))
 
 # Route to add a new instrument (only accessible if logged in)
@@ -155,7 +164,7 @@ def add_instrument():
         brand = request.form['brand'] if request.form['brand'] != 'Add new...' else request.form['new_brand']
         instrument_type = request.form['instrument_type'] if request.form['instrument_type'] != 'Add new...' else request.form['new_instrument_type']
         serial_number = request.form['serial_number']
-        uuid_code = request.form['uuid'] or str(uuid.uuid4())  # Auto-generate UUID if not provided
+        uuid_code = request.form['uuid']  # Manually entered or scanned UUID
         condition = request.form['condition'] if request.form['condition'] != 'Add new...' else request.form['new_condition']
         checked_out = 'checked_out' in request.form  # True if checked out
         location = request.form['location'] if not checked_out else ''
@@ -164,9 +173,24 @@ def add_instrument():
         student_id = request.form['student_id'] if checked_out else ''
         notes = request.form['notes']
 
+        # Handle file uploads (Images)
+        uploaded_files = request.files.getlist('images')
+        image_filenames = []
+        for file in uploaded_files:
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(file_path)
+                image_filenames.append(filename)
+
+        # Ensure at least one image is uploaded
+        if not image_filenames:
+            flash('You must upload at least one image!', 'error')
+            return redirect(url_for('add_instrument'))
+
         # Write the instrument data to the CSV file
         with open(INSTRUMENT_FILE, mode='a', newline='') as file:
-            fieldnames = ['brand', 'instrument_type', 'serial_number', 'uuid', 'condition', 'checked_out', 'location', 'student_name', 'grad_year', 'student_id', 'notes']
+            fieldnames = ['brand', 'instrument_type', 'serial_number', 'uuid', 'condition', 'checked_out', 'location', 'student_name', 'grad_year', 'student_id', 'notes', 'images']
             writer = csv.DictWriter(file, fieldnames=fieldnames)
             if file.tell() == 0:
                 writer.writeheader()  # Write header if file is empty
@@ -181,13 +205,14 @@ def add_instrument():
                 'student_name': student_name,
                 'grad_year': grad_year,
                 'student_id': student_id,
-                'notes': notes
+                'notes': notes,
+                'images': ';'.join(image_filenames)  # Store image filenames as a semicolon-separated string
             })
 
         flash('Instrument added successfully!', 'success')
         return redirect(url_for('add_instrument'))
 
-    # If it's a GET request, load the form and dropdown values
+    # Load dropdown values
     brands, types, conditions = get_dropdown_values()
     return render_template('add_instrument.html', brands=brands, types=types, conditions=conditions)
 
@@ -204,10 +229,8 @@ def logout():
 @app.errorhandler(404)
 def page_not_found(e):
     if 'user' in session or request.cookies.get('user'):
-        # Redirect to home if the user is logged in or has a valid cookie
         return redirect(url_for('home'))
     else:
-        # Redirect to login if the user is not logged in
         return redirect(url_for('login'))
 
 if __name__ == '__main__':

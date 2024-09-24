@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Instrument{% endblock %}
+
+{% block content %}
+<h1>Edit Instrument Information</h1>
+
+<form method="POST" action="{{ url_for('edit_instrument', uuid=instrument.uuid) }}">
+    <div class="form-group">
+        <label for="brand">Brand</label>
+        <input type="text" class="form-control" id="brand" name="brand" value="{{ instrument.brand }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="instrument_type">Instrument Type</label>
+        <input type="text" class="form-control" id="instrument_type" name="instrument_type" value="{{ instrument.instrument_type }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="serial_number">Serial Number</label>
+        <input type="text" class="form-control" id="serial_number" name="serial_number" value="{{ instrument.serial_number }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="condition">Condition</label>
+        <input type="text" class="form-control" id="condition" name="condition" value="{{ instrument.condition }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="checked_out">Checked Out</label>
+        <input type="checkbox" id="checked_out" name="checked_out" {% if instrument.checked_out == 'Yes' %}checked{% endif %}>
+    </div>
+
+    <div class="form-group">
+        <label for="location">Location</label>
+        <input type="text" class="form-control" id="location" name="location" value="{{ instrument.location }}">
+    </div>
+
+    <div class="form-group">
+        <label for="student_name">Student Name</label>
+        <input type="text" class="form-control" id="student_name" name="student_name" value="{{ instrument.student_name }}">
+    </div>
+
+    <div class="form-group">
+        <label for="grad_year">Graduation Year</label>
+        <input type="text" class="form-control" id="grad_year" name="grad_year" value="{{ instrument.grad_year }}">
+    </div>
+
+    <div class="form-group">
+        <label for="student_id">Student ID</label>
+        <input type="text" class="form-control" id="student_id" name="student_id" value="{{ instrument.student_id }}">
+    </div>
+
+    <div class="form-group">
+        <label for="notes">Notes</label>
+        <textarea class="form-control" id="notes" name="notes">{{ instrument.notes }}</textarea>
+    </div>
+
+    <button type="submit" class="btn btn-success">Save Changes</button>
+    <a href="{{ url_for('instruments') }}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

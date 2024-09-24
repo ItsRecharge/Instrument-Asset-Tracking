@@ -18,6 +18,9 @@ CSV_FILE = 'users.csv'  # CSV file to store user data
 INSTRUMENT_FILE = 'instruments.csv'  # CSV file to store instrument data
 SIGNUP_KEY = '123'  # Required sign-up key for user registration
 
+app.config['UPLOAD_FOLDER'] = 'static/uploads'  # Move uploads folder to static
+
+
 # Ensure the upload folder exists
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
@@ -215,6 +218,113 @@ def add_instrument():
     # Load dropdown values
     brands, types, conditions = get_dropdown_values()
     return render_template('add_instrument.html', brands=brands, types=types, conditions=conditions)
+
+# Helper function to read the instruments list from the CSV file
+def get_instruments():
+    instruments = []
+    try:
+        with open(INSTRUMENT_FILE, mode='r') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                instruments.append(row)
+    except FileNotFoundError:
+        pass  # If file doesn't exist, return an empty list
+    return instruments
+
+# Route to display the list of instruments
+@app.route('/instruments')
+def instruments():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    
+    instruments_list = get_instruments()  # Get all instruments
+
+    # Get filters from the request args
+    selected_brand = request.args.get('brand')
+    selected_type = request.args.get('instrument_type')
+    selected_condition = request.args.get('condition')
+    selected_checked_out = request.args.get('checked_out')
+    sort_by = request.args.get('sort_by', 'brand')  # Default sort by brand
+
+    # Apply filters
+    if selected_brand:
+        instruments_list = [i for i in instruments_list if i['brand'] == selected_brand]
+    if selected_type:
+        instruments_list = [i for i in instruments_list if i['instrument_type'] == selected_type]
+    if selected_condition:
+        instruments_list = [i for i in instruments_list if i['condition'] == selected_condition]
+    if selected_checked_out:
+        instruments_list = [i for i in instruments_list if i['checked_out'] == selected_checked_out]
+
+    # Apply sorting
+    instruments_list.sort(key=lambda x: x[sort_by])
+
+    # Get dropdown values for filters
+    brands, types, conditions = get_dropdown_values()
+
+    return render_template('instruments.html', 
+                           instruments=instruments_list, 
+                           brands=brands, 
+                           types=types, 
+                           conditions=conditions)
+
+@app.route('/edit_instrument/<uuid>', methods=['GET', 'POST'])
+def edit_instrument(uuid):
+    if 'user' not in session:
+        return redirect(url_for('login'))
+
+    instruments_list = get_instruments()  # Get all instruments
+    instrument_to_edit = next((i for i in instruments_list if i['uuid'] == uuid), None)
+
+    if not instrument_to_edit:
+        flash('Instrument not found!', 'error')
+        return redirect(url_for('instruments'))
+
+    if request.method == 'POST':
+        # Update the instrument details with the form data
+        instrument_to_edit['brand'] = request.form['brand']
+        instrument_to_edit['instrument_type'] = request.form['instrument_type']
+        instrument_to_edit['serial_number'] = request.form['serial_number']
+        instrument_to_edit['condition'] = request.form['condition']
+        instrument_to_edit['checked_out'] = 'Yes' if 'checked_out' in request.form else 'No'
+        instrument_to_edit['location'] = request.form['location']
+        instrument_to_edit['student_name'] = request.form['student_name']
+        instrument_to_edit['grad_year'] = request.form['grad_year']
+        instrument_to_edit['student_id'] = request.form['student_id']
+        instrument_to_edit['notes'] = request.form['notes']
+
+        # Update the CSV file with the new information
+        with open(INSTRUMENT_FILE, mode='w', newline='') as file:
+            fieldnames = ['brand', 'instrument_type', 'serial_number', 'uuid', 'condition', 'checked_out', 'location', 'student_name', 'grad_year', 'student_id', 'notes', 'images']
+            writer = csv.DictWriter(file, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(instruments_list)  # Write updated instrument list
+
+        flash('Instrument updated successfully!', 'success')
+        return redirect(url_for('instruments'))
+
+    # Pre-fill the form with the current instrument data
+    return render_template('edit_instrument.html', instrument=instrument_to_edit)
+
+
+
+@app.route('/delete_instrument/<uuid>', methods=['POST'])
+def delete_instrument(uuid):
+    if 'user' not in session:
+        return redirect(url_for('login'))
+
+    instruments_list = get_instruments()  # Get all instruments
+    updated_instruments = [i for i in instruments_list if i['uuid'] != uuid]
+
+    # Write the updated instrument list back to the CSV file
+    with open(INSTRUMENT_FILE, mode='w', newline='') as file:
+        fieldnames = ['brand', 'instrument_type', 'serial_number', 'uuid', 'condition', 'checked_out', 'location', 'student_name', 'grad_year', 'student_id', 'notes', 'images']
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(updated_instruments)
+
+    flash('Instrument deleted successfully!', 'success')
+    return redirect(url_for('instruments'))
 
 # Route for logging out
 @app.route('/logout')

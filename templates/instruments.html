@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Instruments List{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Filters section on the left -->
+    <div class="col-md-3">
+        <h3>Filters</h3>
+        <form method="GET" action="{{ url_for('instruments') }}">
+            <div class="form-group">
+                <label for="brand">Brand</label>
+                <select class="form-control" id="brand" name="brand">
+                    <option value="">All Brands</option>
+                    {% for brand in brands %}
+                        <option value="{{ brand }}" {% if request.args.get('brand') == brand %}selected{% endif %}>{{ brand }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="instrument_type">Instrument Type</label>
+                <select class="form-control" id="instrument_type" name="instrument_type">
+                    <option value="">All Types</option>
+                    {% for instrument_type in types %}
+                        <option value="{{ instrument_type }}" {% if request.args.get('instrument_type') == instrument_type %}selected{% endif %}>{{ instrument_type }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="condition">Condition</label>
+                <select class="form-control" id="condition" name="condition">
+                    <option value="">All Conditions</option>
+                    {% for condition in conditions %}
+                        <option value="{{ condition }}" {% if request.args.get('condition') == condition %}selected{% endif %}>{{ condition }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Checked Out filter (Yes/No) -->
+            <div class="form-group">
+                <label for="checked_out">Checked Out</label>
+                <select class="form-control" id="checked_out" name="checked_out">
+                    <option value="">All</option>
+                    <option value="Yes" {% if request.args.get('checked_out') == 'Yes' %}selected{% endif %}>Yes</option>
+                    <option value="No" {% if request.args.get('checked_out') == 'No' %}selected{% endif %}>No</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Apply Filters</button>
+        </form>
+    </div>
+
+    <!-- Instruments list and Sort By on the right -->
+    <div class="col-md-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3>Instruments List</h3>
+            <form method="GET" action="{{ url_for('instruments') }}">
+                <div class="form-inline">
+                    <label class="mr-2" for="sort_by">Sort By</label>
+                    <select class="form-control" id="sort_by" name="sort_by" onchange="this.form.submit()">
+                        <option value="brand" {% if request.args.get('sort_by') == 'brand' %}selected{% endif %}>Brand</option>
+                        <option value="instrument_type" {% if request.args.get('sort_by') == 'instrument_type' %}selected{% endif %}>Instrument Type</option>
+                        <option value="condition" {% if request.args.get('sort_by') == 'condition' %}selected{% endif %}>Condition</option>
+                    </select>
+                </div>
+            </form>
+        </div>
+
+        <!-- Instrument list with accordion display -->
+        <div class="accordion" id="instrumentsAccordion">
+            {% for instrument in instruments %}
+                <div class="card">
+                    <div class="card-header" id="heading{{ loop.index }}">
+                        <h5 class="mb-0">
+                            <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#collapse{{ loop.index }}" aria-expanded="false" aria-controls="collapse{{ loop.index }}">
+                                {{ instrument.brand }} {{ instrument.instrument_type }}: {{ instrument.uuid }}
+                            </button>
+                        </h5>
+                    </div>
+
+                    <!-- Display all relevant data in collapsed section -->
+                    <div id="collapse{{ loop.index }}" class="collapse" aria-labelledby="heading{{ loop.index }}" data-parent="#instrumentsAccordion">
+                        <div class="card-body">
+                            <ul>
+                                <li><strong>Brand:</strong> {{ instrument.brand }}</li>
+                                <li><strong>Instrument Type:</strong> {{ instrument.instrument_type }}</li>
+                                <li><strong>UUID:</strong> {{ instrument.uuid }}</li>
+                                <li><strong>Serial Number:</strong> {{ instrument.serial_number }}</li>
+                                <li><strong>Condition:</strong> {{ instrument.condition }}</li>
+                                <li><strong>Checked Out:</strong> {{ instrument.checked_out }}</li>
+                                <li><strong>Location:</strong> {{ instrument.location }}</li>
+                                <li><strong>Student Name:</strong> {{ instrument.student_name }}</li>
+                                <li><strong>Graduation Year:</strong> {{ instrument.grad_year }}</li>
+                                <li><strong>Student ID:</strong> {{ instrument.student_id }}</li>
+                                <li><strong>Notes:</strong> {{ instrument.notes }}</li>
+                                <li>
+                                    <strong>Images:</strong>
+                                    {% if instrument.images %}
+                                        {% for image in instrument.images.split(';') %}
+                                            <img src="{{ url_for('static', filename='uploads/' ~ image) }}" alt="Instrument Image" class="img-thumbnail" width="100">
+                                        {% endfor %}
+                                    {% else %}
+                                        No Images
+                                    {% endif %}
+                                </li>
+                            </ul>
+
+                            <!-- Edit and Delete buttons -->
+                            <div class="mt-4">
+                                <!-- Edit button links to edit page -->
+                                <a href="{{ url_for('edit_instrument', uuid=instrument.uuid) }}" class="btn btn-warning">Edit Instrument Info</a>
+
+                                <!-- Delete button submits form to delete instrument -->
+                                <form method="POST" action="{{ url_for('delete_instrument', uuid=instrument.uuid) }}" style="display:inline;">
+                                    <input type="hidden" name="_method" value="DELETE">
+                                    <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this instrument?');">Delete Instrument</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

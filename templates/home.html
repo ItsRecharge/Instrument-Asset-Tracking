@@ -7,6 +7,11 @@
     <h1 class="display-4">Welcome, {{ user }}!</h1>
     <p class="lead">You can now manage instruments at the music school.</p>
     <hr class="my-4">
+    
+    <!-- Button to add a new instrument -->
     <a href="{{ url_for('add_instrument') }}" class="btn btn-primary btn-lg">Add a New Instrument</a>
+
+    <!-- Button to view instruments list -->
+    <a href="{{ url_for('instruments') }}" class="btn btn-secondary btn-lg ml-3">View Instruments List</a>
 </div>
 {% endblock %}

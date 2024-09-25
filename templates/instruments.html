@@ -48,6 +48,11 @@
                 </select>
             </div>
 
+            <div class="form-group">
+                <label for="uuid">UUID (Barcode Number)</label>
+                <input type="text" class="form-control" id="uuid" name="uuid" placeholder="Enter or scan UUID" value="{{ request.args.get('uuid', '') }}">
+            </div>
+
             <button type="submit" class="btn btn-primary">Apply Filters</button>
         </form>
     </div>
@@ -94,7 +99,13 @@
                                 <li><strong>Student Name:</strong> {{ instrument.student_name }}</li>
                                 <li><strong>Graduation Year:</strong> {{ instrument.grad_year }}</li>
                                 <li><strong>Student ID:</strong> {{ instrument.student_id }}</li>
-                                <li><strong>Notes:</strong> {{ instrument.notes }}</li>
+                                <li>
+                                    <strong>Notes:</strong>
+                                    <textarea class="form-control" rows="4" oninput="autoSaveNotes('{{ instrument.uuid }}', this.value)">
+                                        {{ instrument.notes }}
+                                    </textarea>
+                                    <small id="notes-save-status-{{ instrument.uuid }}" class="text-muted"></small>
+                                </li>                                
                                 <li>
                                     <strong>Images:</strong>
                                     {% if instrument.images %}
@@ -125,4 +136,33 @@
         </div>
     </div>
 </div>
+
+<script>
+    function autoSaveNotes(uuid, notes) {
+        // Show saving status
+        const statusElement = document.getElementById(`notes-save-status-${uuid}`);
+        statusElement.textContent = 'Saving...';
+    
+        // Make AJAX request to auto-save notes
+        fetch(`/save_notes/${uuid}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ notes: notes })
+        })
+        .then(response => {
+            if (response.ok) {
+                statusElement.textContent = 'Saved';
+            } else {
+                statusElement.textContent = 'Error saving notes';
+            }
+        })
+        .catch(error => {
+            statusElement.textContent = 'Error saving notes';
+        });
+    }
+    </script>
+    
+
 {% endblock %}

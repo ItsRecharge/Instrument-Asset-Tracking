@@ -233,7 +233,47 @@ def get_instruments():
 
 # Route to display the list of instruments
 @app.route('/instruments')
+
+@app.route('/instruments')
 def instruments():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    
+    instruments_list = get_instruments()  # Get all instruments
+
+    # Get filters from the request args
+    selected_brand = request.args.get('brand')
+    selected_type = request.args.get('instrument_type')
+    selected_condition = request.args.get('condition')
+    selected_checked_out = request.args.get('checked_out')
+    selected_uuid = request.args.get('uuid')  # New filter for UUID
+    sort_by = request.args.get('sort_by', 'brand')  # Default sort by brand
+
+    # Apply filters
+    if selected_brand:
+        instruments_list = [i for i in instruments_list if i['brand'] == selected_brand]
+    if selected_type:
+        instruments_list = [i for i in instruments_list if i['instrument_type'] == selected_type]
+    if selected_condition:
+        instruments_list = [i for i in instruments_list if i['condition'] == selected_condition]
+    if selected_checked_out:
+        instruments_list = [i for i in instruments_list if i['checked_out'] == selected_checked_out]
+    if selected_uuid:
+        instruments_list = [i for i in instruments_list if i['uuid'] == selected_uuid]
+
+    # Apply sorting
+    instruments_list.sort(key=lambda x: x[sort_by])
+
+    # Get dropdown values for filters
+    brands, types, conditions = get_dropdown_values()
+
+    return render_template('instruments.html', 
+                           instruments=instruments_list, 
+                           brands=brands, 
+                           types=types, 
+                           conditions=conditions)
+
+
     if 'user' not in session:
         return redirect(url_for('login'))
     
@@ -325,6 +365,34 @@ def delete_instrument(uuid):
 
     flash('Instrument deleted successfully!', 'success')
     return redirect(url_for('instruments'))
+
+@app.route('/save_notes/<uuid>', methods=['POST'])
+def save_notes(uuid):
+    if 'user' not in session:
+        return {'error': 'Unauthorized'}, 403
+
+    instruments_list = get_instruments()  # Get all instruments
+    instrument_to_edit = next((i for i in instruments_list if i['uuid'] == uuid), None)
+
+    if not instrument_to_edit:
+        return {'error': 'Instrument not found'}, 404
+
+    # Get the new notes from the JSON request body
+    data = request.get_json()
+    new_notes = data.get('notes')
+
+    # Update the instrument's notes
+    instrument_to_edit['notes'] = new_notes
+
+    # Save the updated instrument list back to the CSV file
+    with open(INSTRUMENT_FILE, mode='w', newline='') as file:
+        fieldnames = ['brand', 'instrument_type', 'serial_number', 'uuid', 'condition', 'checked_out', 'location', 'student_name', 'grad_year', 'student_id', 'notes', 'images']
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(instruments_list)
+
+    return {'success': True}
+
 
 # Route for logging out
 @app.route('/logout')
